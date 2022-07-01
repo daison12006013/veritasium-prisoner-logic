@@ -3,6 +3,7 @@ package prisoner
 import (
 	"fmt"
 	"math/rand"
+	"time"
 
 	"github.com/lucidfy/lucid/pkg/facade/logger"
 	cli "github.com/urfave/cli/v2"
@@ -46,7 +47,8 @@ func (cc PrisonerLoop) Handle(c *cli.Context) error {
 
 	// randomize the content of the boxes
 	logger.Info("Randomizing the box contents!")
-	rand.Shuffle(len(boxes), func(i int, j int) {
+	source := rand.NewSource(time.Now().UnixNano())
+	rand.New(source).Shuffle(len(boxes), func(i int, j int) {
 		boxes[i], boxes[j] = boxes[j], boxes[i]
 	})
 
@@ -60,8 +62,8 @@ func (cc PrisonerLoop) Handle(c *cli.Context) error {
 	logger.Info("Prisoner's starting to find their boxes!")
 	for p := 0; p < prisoners_count; p++ {
 		// each prisoner, they can choose which box to start with
-		// source := rand.NewSource(time.Now().UnixNano())
-		box_idx := rand.Intn(len(boxes) - 1)
+		source := rand.NewSource(time.Now().UnixNano())
+		box_idx := rand.New(source).Intn(len(boxes) - 1)
 		result = iAmRunningLikeIdiotFindingMyNumber(result, p, boxes, box_idx, 0)
 	}
 
@@ -72,7 +74,7 @@ func (cc PrisonerLoop) Handle(c *cli.Context) error {
 }
 
 func iAmRunningLikeIdiotFindingMyNumber(result *Result, prisoner int, boxes []int, box_idx int, loop int) *Result {
-	if loop == 0 {
+	/*if loop == 0 {
 		if boxes[box_idx] == prisoner {
 			// logger.Info(fmt.Sprintf("Prisoner [%d], found it immediately under box [%d]", prisoner, box_idx))
 			result.PrisonersWhoFoundTheirNumber = append(result.PrisonersWhoFoundTheirNumber, prisoner)
@@ -81,7 +83,7 @@ func iAmRunningLikeIdiotFindingMyNumber(result *Result, prisoner int, boxes []in
 		// else {
 		// 	logger.Info(fmt.Sprintf("Prisoner [%d]:", prisoner))
 		// }
-	}
+	}*/
 
 	// logger.Info(fmt.Sprintf(" -> [box %d] contains [%d]", box_idx, boxes[box_idx]))
 
