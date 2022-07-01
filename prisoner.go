@@ -3,6 +3,7 @@ package prisoner
 import (
 	"fmt"
 	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/lucidfy/lucid/pkg/facade/logger"
@@ -54,7 +55,8 @@ func (cc PrisonerLoop) Handle(c *cli.Context) error {
 
 	// logger.Info("Extract boxes", boxes, len(boxes))
 
-	result := &Result{}
+	var wg sync.WaitGroup
+	pch := make(chan int)
 
 	// each prisoner, should only be allowed to
 	// find their number in the loop at least 50%
@@ -64,7 +66,24 @@ func (cc PrisonerLoop) Handle(c *cli.Context) error {
 		// each prisoner, they can choose which box to start with
 		source := rand.NewSource(time.Now().UnixNano())
 		box_idx := rand.New(source).Intn(len(boxes) - 1)
-		result = iAmRunningLikeIdiotFindingMyNumber(result, p, boxes, box_idx, 0)
+		wg.Add(1)
+		go iAmRunningLikeIdiotFindingMyNumber(pch, &wg, p, boxes, box_idx, 0)
+	}
+
+	go func() {
+		wg.Wait()
+		close(pch)
+	}()
+
+	result := &Result{}
+
+	for prisoner_number := range pch {
+		// it means, this prisoner cant find their number
+		if prisoner_number == -1 {
+			continue
+		}
+
+		result.PrisonersWhoFoundTheirNumber = append(result.PrisonersWhoFoundTheirNumber, prisoner_number)
 	}
 
 	res := (float32(len(result.PrisonersWhoFoundTheirNumber)) / float32(prisoners_count)) * 100
@@ -73,33 +92,34 @@ func (cc PrisonerLoop) Handle(c *cli.Context) error {
 	return nil
 }
 
-func iAmRunningLikeIdiotFindingMyNumber(result *Result, prisoner int, boxes []int, box_idx int, loop int) *Result {
+func iAmRunningLikeIdiotFindingMyNumber(pch chan int, wg *sync.WaitGroup, prisoner int, boxes []int, box_idx int, loop int) {
 	/*if loop == 0 {
 		if boxes[box_idx] == prisoner {
-			// logger.Info(fmt.Sprintf("Prisoner [%d], found it immediately under box [%d]", prisoner, box_idx))
-			result.PrisonersWhoFoundTheirNumber = append(result.PrisonersWhoFoundTheirNumber, prisoner)
-			return result
+			logger.Info(fmt.Sprintf("Prisoner [%d], found it immediately under box [%d]", prisoner, box_idx))
+			return
+		} else {
+		    logger.Info(fmt.Sprintf("Prisoner [%d]:", prisoner))
 		}
-		// else {
-		// 	logger.Info(fmt.Sprintf("Prisoner [%d]:", prisoner))
-		// }
 	}*/
-
 	// logger.Info(fmt.Sprintf(" -> [box %d] contains [%d]", box_idx, boxes[box_idx]))
 
 	if boxes[box_idx] == prisoner {
 		// logger.Info(" -> Found it!")
-		result.PrisonersWhoFoundTheirNumber = append(result.PrisonersWhoFoundTheirNumber, prisoner)
-		return result
+		defer wg.Done()
+		pch <- prisoner
+		logger.Info(fmt.Sprintf("Prisoner [%d] found their number at box [%d]", prisoner, box_idx))
+		return
 	}
 
 	if loop == (len(boxes) / 2) {
 		// logger.Info(" -> Oh no, prisoner is not allowed to open a box anymore!")
-		return result
+		defer wg.Done()
+		pch <- -1
+		logger.Info(fmt.Sprintf("Prisoner [%d] cant find the number", prisoner))
+		return
 	}
 
 	loop += 1
 	next_box_id := boxes[box_idx]
-	iAmRunningLikeIdiotFindingMyNumber(result, prisoner, boxes, next_box_id, loop)
-	return result
+	iAmRunningLikeIdiotFindingMyNumber(pch, wg, prisoner, boxes, next_box_id, loop)
 }
